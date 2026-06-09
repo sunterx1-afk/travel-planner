@@ -1,19 +1,23 @@
 import { createBrowserRouter } from 'react-router-dom';
-import MainLandingPage from '../page/MainLandingPage';
+import MainLandingPage from '../pages/MainLandingPage';
+import LoginPage from '../pages/LoginPage';
+import SignupPage from '../pages/SignupPage';
+import TripCreatePage from '../pages/TripCreatePage';
+import TripResultPage from '../pages/TripResultPage';
+import PlannerPage from '../pages/PlannerPage';
+import TripListPage from '../pages/TripListPage';
+import TripDetailPage from '../pages/Tripdetailpage';
+
 
 export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <MainLandingPage />,
-  },
-  /* 💡 추후 다른 페이지들을 아래처럼 추가해 나가면 됩니다.
-  {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  {
-    path: '/planner',
-    element: <TravelPlannerPage />,
-  },
-  */
+  {path: '/',element: <MainLandingPage />,},
+  {path: '/login',element: <LoginPage />,},
+  {path: '/signup',element: <SignupPage />,},
+  {path: '/planner',element: <TripCreatePage  />,},
+  {path: '/trips/result',element: <TripResultPage   />,},
+  {path: '/trips/:id/planner',element: <PlannerPage    />,},
+  {path: '/trips',element: <TripListPage     />,},
+  {path: '/tripsdetail',element: <TripDetailPage     />,},
+  
+ 
 ]);

@@ -1,6 +1,7 @@
 import React from 'react';
 // 💡 타입스크립트 에러가 나지 않는 깔끔한 Lucide 아이콘 라이브러리입니다.
 import { MapPin, Sparkles, Wand2, Play, Map, Coins } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // 💡 이 줄을 추가해 주세요!
 
 interface MainLandingPageProps {
   onStart?: () => void;
@@ -13,14 +14,11 @@ interface StepItem {
 }
 
 const MainLandingPage: React.FC<MainLandingPageProps> = ({ onStart }) => {
+  const navigate = useNavigate(); // 💡 이동 함수 선언!
   
-  const handleStart = (): void => {
-    if (onStart) {
-      onStart();
-    } else {
-      alert('여행 생성 페이지로 이동합니다!');
-    }
-  };
+const handleStart = (): void => {
+  navigate('/planner');
+};
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen font-sans antialiased text-[#212529]">
@@ -35,7 +33,7 @@ const MainLandingPage: React.FC<MainLandingPageProps> = ({ onStart }) => {
         <div className="flex items-center gap-5">
           <span className="text-[13px] text-[#495057] cursor-pointer hover:text-[#212529]">서비스 소개</span>
           <span className="text-[13px] text-[#495057] cursor-pointer hover:text-[#212529]">이용 방법</span>
-          <button className="px-4 py-1.5 rounded-md text-[13px] border border-[#dee2e6] bg-transparent cursor-pointer hover:bg-gray-50 transition-colors">
+          <button className="px-4 py-1.5 rounded-md text-[13px] border border-[#dee2e6] bg-transparent cursor-pointer hover:bg-gray-50 transition-colors"onClick={() => navigate('/login')}>
             로그인
           </button>
           <button 
