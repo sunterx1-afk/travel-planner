@@ -1,117 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, Coins, Users, ChevronLeft,
   Edit2, Trash2, Clock, ChevronDown, ChevronUp, Navigation
 } from 'lucide-react';
+import { getTripById, deleteTrip, type TripResponse } from '../service/tripService';
 
-// ─────────────────────────────────────────
-// 타입 정의
-// ─────────────────────────────────────────
 type TripStatus = 'UPCOMING' | 'COMPLETED' | 'DRAFT';
 
-interface SchedulePlace {
-  id: number;
-  order: number;
-  placeName: string;
-  placeCategory: string;
-  address: string;
-  visitTime: string;
-  duration: number;
-  estimatedCost: number;
-  memo: string;
-}
-
-interface DaySchedule {
-  dayNumber: number;
-  date: string;
-  theme: string;
-  places: SchedulePlace[];
-}
-
-interface TripDetail {
-  id: number;
-  title: string;
-  destination: string;
-  startDate: string;
-  endDate: string;
-  days: number;
-  budget: number;
-  companions: number;
-  travelStyle: string;
-  status: TripStatus;
-  createdAt: string;
-  schedules: DaySchedule[];
-}
-
-// ─────────────────────────────────────────
-// 더미 데이터
-// ─────────────────────────────────────────
-const DUMMY_DETAIL: TripDetail = {
-  id: 1,
-  title: '제주도 힐링 여행',
-  destination: '제주도',
-  startDate: '2024-08-15',
-  endDate: '2024-08-18',
-  days: 4,
-  budget: 500000,
-  companions: 2,
-  travelStyle: '여유로운',
-  status: 'UPCOMING',
-  createdAt: '2024-07-20',
-  schedules: [
-    {
-      dayNumber: 1,
-      date: '2024-08-15',
-      theme: '동부 자연 탐방',
-      places: [
-        { id: 1, order: 1, placeName: '성산일출봉', placeCategory: '관광명소', address: '제주 서귀포시 성산읍', visitTime: '09:00', duration: 120, estimatedCost: 5000, memo: '유네스코 세계자연유산' },
-        { id: 2, order: 2, placeName: '섭지코지', placeCategory: '관광명소', address: '제주 서귀포시 성산읍', visitTime: '11:30', duration: 60, estimatedCost: 0, memo: '' },
-        { id: 3, order: 3, placeName: '흑돼지거리', placeCategory: '음식점', address: '제주시 연동', visitTime: '13:00', duration: 60, estimatedCost: 20000, memo: '1인 2만원 예상' },
-        { id: 4, order: 4, placeName: '우도', placeCategory: '관광명소', address: '제주 제주시 우도면', visitTime: '15:00', duration: 180, estimatedCost: 15000, memo: '배편 왕복 포함' },
-      ],
-    },
-    {
-      dayNumber: 2,
-      date: '2024-08-16',
-      theme: '서부 카페 투어',
-      places: [
-        { id: 5, order: 1, placeName: '한림공원', placeCategory: '관광명소', address: '제주 제주시 한림읍', visitTime: '10:00', duration: 90, estimatedCost: 12000, memo: '' },
-        { id: 6, order: 2, placeName: '협재해수욕장', placeCategory: '해변', address: '제주 제주시 한림읍', visitTime: '12:00', duration: 120, estimatedCost: 0, memo: '' },
-        { id: 7, order: 3, placeName: '카페 드 몽', placeCategory: '카페', address: '제주 제주시 한림읍', visitTime: '15:00', duration: 60, estimatedCost: 8000, memo: '오션뷰 카페' },
-      ],
-    },
-    {
-      dayNumber: 3,
-      date: '2024-08-17',
-      theme: '한라산 트레킹',
-      places: [
-        { id: 8, order: 1, placeName: '한라산 어리목 코스', placeCategory: '자연', address: '제주 제주시 해안동', visitTime: '08:00', duration: 240, estimatedCost: 0, memo: '등산화 필수' },
-        { id: 9, order: 2, placeName: '제주 동문시장', placeCategory: '시장', address: '제주시 이도1동', visitTime: '14:00', duration: 90, estimatedCost: 15000, memo: '' },
-      ],
-    },
-    {
-      dayNumber: 4,
-      date: '2024-08-18',
-      theme: '남부 & 출발',
-      places: [
-        { id: 10, order: 1, placeName: '주상절리', placeCategory: '관광명소', address: '제주 서귀포시 중문동', visitTime: '09:00', duration: 60, estimatedCost: 2000, memo: '' },
-        { id: 11, order: 2, placeName: '중문 관광단지', placeCategory: '관광명소', address: '제주 서귀포시 중문동', visitTime: '11:00', duration: 90, estimatedCost: 0, memo: '' },
-      ],
-    },
-  ],
-};
-
-// ─────────────────────────────────────────
-// 상태 뱃지
-// ─────────────────────────────────────────
 const StatusBadge: React.FC<{ status: TripStatus }> = ({ status }) => {
   const map = {
     UPCOMING: { label: '예정', className: 'bg-[#E6F1FB] text-[#178DD7]' },
     COMPLETED: { label: '완료', className: 'bg-[#EAF3DE] text-[#639922]' },
     DRAFT: { label: '임시저장', className: 'bg-[#f1f3f5] text-[#6c757d]' },
   };
-  const { label, className } = map[status];
+  const { label, className } = map[status] ?? map['DRAFT'];
   return (
     <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${className}`}>
       {label}
@@ -119,17 +22,30 @@ const StatusBadge: React.FC<{ status: TripStatus }> = ({ status }) => {
   );
 };
 
-// ─────────────────────────────────────────
-// 컴포넌트
-// ─────────────────────────────────────────
 const TripDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  // 💡 추후 백엔드 API로 id 기반 데이터 조회
-  const trip = DUMMY_DETAIL;
-
+  const [trip, setTrip] = useState<TripResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
   const [openDays, setOpenDays] = useState<number[]>([1]);
+
+  useEffect(() => {
+    const fetchTrip = async () => {
+      if (!id) return;
+      try {
+        const data = await getTripById(Number(id));
+        setTrip(data);
+      } catch (err: any) {
+        setError('여행 정보를 불러오지 못했어요.');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTrip();
+  }, [id]);
 
   const toggleDay = (day: number): void => {
     setOpenDays((prev) =>
@@ -137,12 +53,42 @@ const TripDetailPage: React.FC = () => {
     );
   };
 
-  const handleDelete = (): void => {
+  const handleDelete = async (): Promise<void> => {
     if (!confirm('이 여행을 삭제할까요?')) return;
-    // 💡 추후 백엔드 삭제 API 연동할 공간
-    console.log('여행 삭제:', id);
-    navigate('/trips');
+    try {
+      await deleteTrip(Number(id));
+      navigate('/trips');
+    } catch (err) {
+      alert('삭제에 실패했어요. 다시 시도해주세요.');
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="bg-[#f8f9fa] min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-[#6c757d]">
+          <svg className="animate-spin w-8 h-8 text-[#178DD7]" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <span className="text-[13px]">여행 정보를 불러오는 중...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !trip) {
+    return (
+      <div className="bg-[#f8f9fa] min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-[#6c757d]">
+          <p className="text-[14px]">{error || '여행을 찾을 수 없어요.'}</p>
+          <button onClick={() => navigate('/trips')} className="text-[#178DD7] text-[13px]">
+            목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const totalCost = trip.schedules
     .flatMap((s) => s.places)
@@ -162,7 +108,7 @@ const TripDetailPage: React.FC = () => {
         </button>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate(`/trips/${trip.id}/planner`)}
+            onClick={() => navigate(`/trips/${trip.tripId}/planner`)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#dee2e6] text-[13px] text-[#495057] hover:bg-gray-50 transition-colors"
           >
             <Edit2 className="w-3.5 h-3.5" />
@@ -185,14 +131,13 @@ const TripDetailPage: React.FC = () => {
           <div className="flex items-start justify-between mb-3">
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <StatusBadge status={trip.status} />
+                <StatusBadge status={trip.status as TripStatus} />
                 <span className="text-[11px] text-[#adb5bd]">{trip.travelStyle}</span>
               </div>
               <h1 className="text-xl font-medium text-[#212529]">{trip.title}</h1>
             </div>
           </div>
 
-          {/* 정보 그리드 */}
           <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#f1f3f5]">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-md bg-[#E6F1FB] flex items-center justify-center flex-shrink-0">
@@ -232,7 +177,6 @@ const TripDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 예상 비용 */}
           <div className="mt-3 pt-3 border-t border-[#f1f3f5] flex items-center justify-between">
             <span className="text-[12px] text-[#6c757d]">총 예상 비용</span>
             <div className="flex items-center gap-2">
@@ -243,7 +187,6 @@ const TripDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 예산 진행바 */}
           <div className="mt-2 h-1.5 bg-[#f1f3f5] rounded-full overflow-hidden">
             <div
               className="h-full bg-[#178DD7] rounded-full transition-all"
@@ -257,8 +200,6 @@ const TripDetailPage: React.FC = () => {
         <div className="flex flex-col gap-3">
           {trip.schedules.map((day) => (
             <div key={day.dayNumber} className="bg-white border border-[#e9ecef] rounded-xl overflow-hidden">
-
-              {/* 날짜 헤더 */}
               <button
                 type="button"
                 onClick={() => toggleDay(day.dayNumber)}
@@ -269,11 +210,9 @@ const TripDetailPage: React.FC = () => {
                     {day.dayNumber}
                   </div>
                   <div className="text-left">
-                    <span className="text-[14px] font-medium text-[#212529]">
-                      {day.dayNumber}일차
-                    </span>
+                    <span className="text-[14px] font-medium text-[#212529]">{day.dayNumber}일차</span>
                     <span className="text-[12px] text-[#6c757d] ml-2">{day.theme}</span>
-                    <div className="text-[11px] text-[#adb5bd]">{day.date}</div>
+                    <div className="text-[11px] text-[#adb5bd]">{day.scheduleDate}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -285,16 +224,15 @@ const TripDetailPage: React.FC = () => {
                 </div>
               </button>
 
-              {/* 장소 목록 */}
               {openDays.includes(day.dayNumber) && (
                 <div className="border-t border-[#f1f3f5] divide-y divide-[#f1f3f5]">
                   {day.places.map((place) => (
-                    <div key={place.id} className="flex gap-3 px-5 py-3.5">
+                    <div key={place.placeId} className="flex gap-3 px-5 py-3.5">
                       <div className="flex flex-col items-center gap-1 flex-shrink-0">
                         <div className="w-5 h-5 rounded-full bg-[#E6F1FB] text-[#178DD7] text-[10px] font-medium flex items-center justify-center">
-                          {place.order}
+                          {place.placeOrder}
                         </div>
-                        {place.order < day.places.length && (
+                        {place.placeOrder < day.places.length && (
                           <div className="w-[1px] h-5 bg-[#dee2e6]" />
                         )}
                       </div>
@@ -331,9 +269,8 @@ const TripDetailPage: React.FC = () => {
           ))}
         </div>
 
-        {/* 하단 편집 버튼 */}
         <button
-          onClick={() => navigate(`/trips/${trip.id}/planner`)}
+          onClick={() => navigate(`/trips/${trip.tripId}/planner`)}
           className="w-full mt-6 py-3 rounded-xl bg-[#178DD7] text-white text-[13px] font-medium hover:bg-[#1278ba] transition-colors flex items-center justify-center gap-2"
         >
           <Edit2 className="w-4 h-4" />

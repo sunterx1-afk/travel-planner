@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Eye, EyeOff } from 'lucide-react';
+import axios from '../service/axios';
 
 interface SignupForm {
   email: string;
@@ -68,15 +69,29 @@ const SignupPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent): void => {
-    e.preventDefault();
-    if (!validate()) return;
+const handleSubmit = async (e: React.FormEvent): Promise<void> => { // async 추가
+  e.preventDefault();
+  if (!validate()) return;
 
-    // 💡 추후 백엔드 회원가입 API 연동할 공간
-    console.log('회원가입 시도:', form);
+  try {
+    // 2. 실제 백엔드 서버로 POST 요청 전송
+    const response = await axios.post('/api/auth/register', {
+      email: form.email,
+      password: form.password,
+      nickname: form.nickname
+    });
+
+    // 3. 서버 응답이 성공(200번대)일 때만 알림
+    console.log('서버 응답:', response.data);
     alert('회원가입이 완료되었습니다!');
     navigate('/login');
-  };
+    
+  } catch (error) {
+    // 4. 에러 발생 시 (DB 저장 실패, 이메일 중복 등)
+    console.error('회원가입 실패:', error);
+    alert('회원가입에 실패했습니다. 다시 시도해주세요.');
+  }
+};
 
   const handleKakaoSignup = (): void => {
     // 💡 추후 카카오 OAuth2 연동할 공간
