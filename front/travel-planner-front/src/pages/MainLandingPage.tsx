@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MapPin, Sparkles, Wand2, Play, Map, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -16,6 +16,15 @@ const MainLandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, logoutState } = useAuth();
 
+  // 💡 1. 모달 열림/닫힘 상태 관리
+  const [isIntroOpen, setIsIntroOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
+  // 💡 2. 모달 공통 TailWind 스타일 정의
+  const modalOverlayStyle = "fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity animate-fade-in";
+  const modalContentStyle = "bg-white rounded-[20px] p-6 w-full max-w-md shadow-[0_20px_50px_rgba(0,0,0,0.15)] transform transition-all border border-gray-100 relative mx-4 text-left";
+  const closeButtonStyle = "absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-bold focus:outline-none cursor-pointer";
+
   const handleStart = () => { navigate('/planner'); };
 
   return (
@@ -31,8 +40,19 @@ const MainLandingPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-5">
-          <span className="text-[13px] text-[#495057] cursor-pointer hover:text-[#212529]">서비스 소개</span>
-          <span className="text-[13px] text-[#495057] cursor-pointer hover:text-[#212529]">이용 방법</span>
+          {/* 💡 3. 네비게이션 항목 이벤트 바인딩 */}
+          <span 
+            className="text-[13px] text-[#495057] cursor-pointer hover:text-[#212529] font-medium transition-colors"
+            onClick={() => setIsIntroOpen(true)}
+          >
+            서비스 소개
+          </span>
+          <span 
+            className="text-[13px] text-[#495057] cursor-pointer hover:text-[#212529] font-medium transition-colors"
+            onClick={() => setIsGuideOpen(true)}
+          >
+            이용 방법
+          </span>
 
           {isAuthenticated ? (
             <>
@@ -89,10 +109,6 @@ const MainLandingPage: React.FC = () => {
             <Wand2 className="w-4 h-4" />
             무료로 시작하기 ↗
           </button>
-          <button className="px-6 py-2.5 rounded-md text-sm font-medium bg-transparent border border-[#dee2e6] hover:bg-gray-50 transition-colors flex items-center gap-1.5 cursor-pointer">
-            <Play className="w-3.5 h-3.5 fill-current" />
-            데모 보기
-          </button>
         </div>
 
         {/* 브라우저 프레임 */}
@@ -103,14 +119,10 @@ const MainLandingPage: React.FC = () => {
             <div className="w-2.5 h-2.5 rounded-full bg-[#CED4DA]" />
           </div>
 
-          {/* 로그인 여부에 따라 분기 */}
           {isAuthenticated ? (
-            /* ✅ 로그인 상태: 실제 내 일정 캐러셀 */
             <TripCarousel />
           ) : (
-            /* 🔒 비로그인: 샘플 지도 + 예시 일정 뱃지 */
             <div className="flex flex-col gap-3">
-              {/* 예시 일정 뱃지 */}
               <div className="flex items-center justify-between">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF3CD] text-[#856404] text-[11px] font-medium">
                   ✨ 예시 일정입니다
@@ -123,7 +135,6 @@ const MainLandingPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* 샘플 TripPreviewCard */}
               <TripPreviewCard
                 tripId={0}
                 title="제주도 1일 여행"
@@ -171,6 +182,75 @@ const MainLandingPage: React.FC = () => {
 
         </div>
       </section>
+
+      {/* ─── 💡 4. 팝업 모달 렌더링 구역 ─── */}
+
+      {/* 1️⃣ 서비스 소개 모달 */}
+      {isIntroOpen && (
+        <div className={modalOverlayStyle} onClick={() => setIsIntroOpen(false)}>
+          <div className={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+            <button className={closeButtonStyle} onClick={() => setIsIntroOpen(false)}>×</button>
+            
+            <div className="text-center mb-4">
+              <span className="text-4xl">✈️</span>
+              <h2 className="text-lg font-semibold text-[#212529] mt-2">AI 여행 플래너 소개</h2>
+              <p className="text-xs text-[#178DD7] font-semibold mt-1">Smart AI & Kakao Map Mapping System</p>
+            </div>
+            
+            <div className="space-y-3 text-[13px] text-[#495057] leading-relaxed">
+              <p>
+                모든 일정을 직접 짜기엔 숨 막히고, 가짜 정보에 속기는 지치셨나요? 
+                우리 서비스는 사용자의 예산, 동반자, 취향을 분석하여 <strong>LLM 기반 최첨단 AI</strong>가 개인 맞춤형 스케줄을 빌드합니다.
+              </p>
+              <div className="bg-[#E6F1FB] rounded-xl p-3 text-xs text-[#147bc2] font-medium">
+                📢 <strong className="text-[#178DD7]">핵심 기술 요약</strong><br/>
+                AI가 추천한 장소 키워드를 백엔드에서 <strong>카카오 맵 API</strong>와 실시간 매칭·검증하여, 오타나 유령 장소 없이 국내에 실제 운영 중인 매장의 정확한 좌표와 주소만을 엄선해 지도에 마커로 시각화합니다.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2️⃣ 이용 방법 모달 */}
+      {isGuideOpen && (
+        <div className={modalOverlayStyle} onClick={() => setIsGuideOpen(false)}>
+          <div className={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+            <button className={closeButtonStyle} onClick={() => setIsGuideOpen(false)}>×</button>
+            
+            <div className="text-center mb-4">
+              <span className="text-4xl">🗺️</span>
+              <h2 className="text-lg font-semibold text-[#212529] mt-2">쉽고 빠른 이용 방법</h2>
+              <p className="text-xs text-gray-400 mt-1">3단계만 거치면 나만의 여행 완성!</p>
+            </div>
+            
+            <div className="space-y-4 text-[13px] text-[#495057]">
+              <div className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[#E6F1FB] text-[#178DD7] font-bold text-xs shrink-0 mt-0.5">1</span>
+                <div>
+                  <h4 className="font-medium text-[#212529]">목적지 및 일정 입력</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">원하는 여행지(예: 제주도, 세종시, 강릉)와 출발·도착 날짜를 정확히 지정합니다.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[#E6F1FB] text-[#178DD7] font-bold text-xs shrink-0 mt-0.5">2</span>
+                <div>
+                  <h4 className="font-medium text-[#212529]">취향 및 조건 설정</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">총 예산, 동반 인원수, 선호하는 여행 스타일(맛집탐방, 자연힐링 등)을 선택해 주세요.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[#178DD7] text-white font-bold text-xs shrink-0 mt-0.5">3</span>
+                <div>
+                  <h4 className="font-medium text-[#178DD7]">AI 일정 생성 및 확인</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">생성 버튼을 누르면 카카오 지도 위에 동선이 실시간으로 맵핑되며, 하루 치 지출 금액까지 알차게 계산된 일정을 확인할 수 있습니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="border-t border-[#e9ecef] py-6 text-center text-[12px] text-[#adb5bd] bg-[#f8f9fa]">
         &copy; 2026 AI 여행 플래너. All rights reserved.
