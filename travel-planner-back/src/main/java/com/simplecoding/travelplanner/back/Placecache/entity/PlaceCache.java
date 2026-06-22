@@ -35,7 +35,7 @@ public class PlaceCache {
     @Column(name = "LONGITUDE")
     private Double longitude;
 
-    @Column(name = "CATEGORY", length = 50)
+    @Column(name = "CATEGORY", length = 255)
     private String category;
 
     @CreationTimestamp

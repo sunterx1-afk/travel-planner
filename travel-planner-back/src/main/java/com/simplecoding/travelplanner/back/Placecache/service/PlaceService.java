@@ -13,6 +13,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,37 +26,64 @@ public class PlaceService {
     private final PlaceCacheRepository placeCacheRepository;
     private final ObjectMapper objectMapper;
 
-    // 💡 카카오 API 키 받으면 application.properties에 추가
-    // kakao.api.key=YOUR_KAKAO_REST_API_KEY
     @Value("${kakao.api.key:}")
     private String kakaoApiKey;
 
     private static final String KAKAO_SEARCH_URL =
             "https://dapi.kakao.com/v2/local/search/keyword.json";
 
-    // 장소 검색 (캐시 우선 → 없으면 카카오 API 호출)
+    // 💡 기존 호출부와의 호환을 위해 유지 (지역 검증 없는 기본 검색)
     @Transactional
     public List<PlaceResponse> searchPlaces(String keyword) {
+        return searchPlaces(keyword, null);
+    }
+
+    /**
+     * 장소 검색 (캐시 우선 → 없으면 카카오 API 호출)
+     * @param keyword 검색 키워드
+     * @param regionFilter null이 아니면, 주소에 이 지역명이 포함된 결과만 반환 (캐시/API 공통 적용)
+     */
+    @Transactional
+    public List<PlaceResponse> searchPlaces(String keyword, String regionFilter) {
 
         // 1. 캐시에서 먼저 검색
         List<PlaceCache> cached = placeCacheRepository
                 .findByPlaceNameContainingIgnoreCase(keyword);
 
         if (!cached.isEmpty()) {
-            log.info("캐시에서 장소 반환: keyword={}, count={}", keyword, cached.size());
-            return cached.stream()
+            List<PlaceResponse> cachedResults = cached.stream()
                     .map(PlaceResponse::fromCache)
                     .toList();
+
+            List<PlaceResponse> filtered = filterByRegion(cachedResults, regionFilter);
+
+            if (!filtered.isEmpty()) {
+                log.info("캐시에서 장소 반환 (지역 검증 통과): keyword={}, count={}", keyword, filtered.size());
+                return filtered;
+            } else if (regionFilter != null) {
+                // 💡 캐시는 있지만 지역이 안 맞으면 캐시 무시하고 카카오 API로 재검색
+                log.warn("캐시 결과가 지역({})과 불일치하여 무시하고 API 재검색: keyword={}", regionFilter, keyword);
+            }
         }
 
-        // 2. 캐시 없으면 카카오 API 호출
-        // 💡 카카오 API 키 받으면 아래 주석 해제
+        // 2. 캐시 없거나 지역 불일치 -> 카카오 API 호출
         if (kakaoApiKey == null || kakaoApiKey.isBlank()) {
             log.warn("카카오 API 키가 없어요. 빈 결과 반환");
             return new ArrayList<>();
         }
 
-        return searchFromKakao(keyword);
+        List<PlaceResponse> apiResults = searchFromKakao(keyword);
+        return filterByRegion(apiResults, regionFilter);
+    }
+
+    // 💡 주소에 지역명이 포함된 결과만 필터링 (regionFilter가 null이면 전체 반환)
+    private List<PlaceResponse> filterByRegion(List<PlaceResponse> results, String regionFilter) {
+        if (regionFilter == null || regionFilter.isBlank()) {
+            return results;
+        }
+        return results.stream()
+                .filter(p -> p.getAddress() != null && p.getAddress().contains(regionFilter))
+                .toList();
     }
 
     // 카카오 로컬 API 호출
@@ -64,12 +92,15 @@ public class PlaceService {
             RestTemplate restTemplate = new RestTemplate();
 
             HttpHeaders headers = new HttpHeaders();
-            // 💡 카카오 API 키 받으면 아래 주석 해제
             headers.set("Authorization", "KakaoAK " + kakaoApiKey);
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-            String url = KAKAO_SEARCH_URL + "?query=" + keyword + "&size=10";
+            String url = UriComponentsBuilder.fromHttpUrl(KAKAO_SEARCH_URL)
+                    .queryParam("query", keyword)
+                    .queryParam("size", 15) // 💡 후보를 더 많이 받아서 지역 필터링 여지를 늘림
+                    .build()
+                    .toUriString();
 
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, String.class);
@@ -99,7 +130,6 @@ public class PlaceService {
                 double longitude = doc.path("x").asDouble();
                 double latitude = doc.path("y").asDouble();
 
-                // 캐시에 없으면 저장
                 if (placeCacheRepository.findByKakaoPlaceId(kakaoPlaceId).isEmpty()) {
                     PlaceCache cache = PlaceCache.builder()
                             .kakaoPlaceId(kakaoPlaceId)

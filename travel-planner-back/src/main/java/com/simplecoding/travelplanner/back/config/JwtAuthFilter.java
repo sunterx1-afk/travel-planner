@@ -33,7 +33,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (token != null && jwtUtil.validateToken(token)) {
             Long userId = jwtUtil.getUserIdFromToken(token);
             String email = jwtUtil.getEmailFromToken(token);
-
+            System.out.println("필터에서 확인된 이메일: " + email);
             // ⭕ 스프링 시큐리티가 인식할 수 있는 기본 유저 권한을 부여합니다.
             java.util.List<org.springframework.security.core.GrantedAuthority> authorities =
                     org.springframework.security.core.authority.AuthorityUtils.createAuthorityList("ROLE_USER");

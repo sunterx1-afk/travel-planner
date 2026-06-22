@@ -33,11 +33,15 @@ const handleLogin = async (e: React.FormEvent) => {
     }
   };
 
-  const handleKakaoLogin = () => {
-    // 💡 추후 카카오 OAuth2 연동할 공간
-    console.log('카카오 로그인 시도');
-    alert('카카오 로그인 페이지로 이동합니다.');
-  };
+const handleKakaoLogin = () => {
+  const REST_API_KEY = "056b1be1440dee519bd6007c28ff34b5"; 
+  const REDIRECT_URI = "http://localhost:5173/oauth/kakao"; 
+
+  // 💡 끝에 &prompt=login을 추가하세요!
+  const KAKAO_AUTH_URL = `https://kauth.kakao.com/oauth/authorize?client_id=${REST_API_KEY}&redirect_uri=${REDIRECT_URI}&response_type=code&prompt=login`;
+
+  window.location.href = KAKAO_AUTH_URL;
+};
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen flex justify-center items-center p-5 font-sans antialiased text-[#212529]">

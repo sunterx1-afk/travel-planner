@@ -1,5 +1,6 @@
 package com.simplecoding.travelplanner.back.user.service;
 
+import com.simplecoding.travelplanner.back.auth.entity.RefreshToken;
 import com.simplecoding.travelplanner.back.config.JwtUtil;
 import com.simplecoding.travelplanner.back.user.dto.request.LoginRequest;
 import com.simplecoding.travelplanner.back.user.dto.request.RegisterRequest;
@@ -18,6 +19,8 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.simplecoding.travelplanner.back.auth.entity.RefreshToken;
+import com.simplecoding.travelplanner.back.auth.repository.RefreshTokenRepository;
 
 import java.nio.charset.StandardCharsets;
 
@@ -29,6 +32,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -59,8 +63,7 @@ public class AuthService {
                 .build();
     }
 
-    // 로그인
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest request, HttpServletResponse response) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않아요."));
@@ -69,16 +72,33 @@ public class AuthService {
             throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않아요.");
         }
 
-        // JWT 생성
-        String token = jwtUtil.generateToken(user.getUserId(), user.getEmail());
+        // 3. 토큰 생성
+        String accessToken = jwtUtil.generateToken(user.getUserId(), user.getEmail());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getEmail()); // Refresh Token 생성
 
-        // HttpOnly 쿠키에 저장
-        Cookie cookie = new Cookie("accessToken", token);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath("/");
-        cookie.setMaxAge(-1);
-        response.addCookie(cookie);
+        // 4. Redis에 Refresh Token 저장
+        refreshTokenRepository.save(RefreshToken.builder()
+                .email(user.getEmail())
+                .refreshToken(refreshToken)
+                .build());
+
+
+// 5. 쿠키에 Access Token 및 Refresh Token 저장
+        Cookie accessCookie = new Cookie("accessToken", accessToken);
+        accessCookie.setHttpOnly(true);
+        accessCookie.setSecure(true);
+        accessCookie.setPath("/");
+        response.addCookie(accessCookie);
+
+// 💡 추가된 부분: Refresh Token도 쿠키로 만들어서 응답 헤더에 추가합니다.
+ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
+        .httpOnly(true)
+        .path("/")
+        .sameSite("Lax")
+        .build();
+
+response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
 
         return AuthResponse.builder()
                 .userId(user.getUserId())
@@ -88,19 +108,30 @@ public class AuthService {
                 .build();
     }
 
-    // 로그아웃
-    public void logout(HttpServletResponse response) {
-        // 1. SameSite 설정과 만료 시간(0)을 명시한 쿠키 생성
-        ResponseCookie cookie = ResponseCookie.from("accessToken", null)
+    public void logout(HttpServletResponse response, String email) {
+        // 1. accessToken 삭제용 쿠키
+        ResponseCookie accessCookie = ResponseCookie.from("accessToken", null)
                 .httpOnly(true)
-                .secure(false) // 로컬 개발 환경용, HTTPS라면 true
+                .secure(true)
                 .path("/")
-                .maxAge(0)     // 💡 중요: 0으로 설정하여 즉시 삭제
-                .sameSite("Lax") // 💡 중요: 브라우저 보안 정책 대응
+                .maxAge(0)
                 .build();
 
-        // 2. 응답 헤더에 직접 Set-Cookie 추가
-        response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        // 2. refreshToken 삭제용 쿠키
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", null)
+                .httpOnly(true)
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        // 3. 두 쿠키를 응답 헤더에 추가 (setHeader 대신 addHeader 사용)
+        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
+        // 4. Redis 데이터 삭제 (이 부분이 중요!)
+        if (email != null) {
+            refreshTokenRepository.deleteById(email);
+        }
     }
 
     /**
@@ -130,5 +161,23 @@ public class AuthService {
         } catch (Exception e) {
             throw new IllegalArgumentException("유효하지 않거나 만료된 토큰입니다.");
         }
+    }
+
+    public void saveTokensToCookie(HttpServletResponse response, String accessToken, String refreshToken) {
+        // Access Token 쿠키 설정
+        Cookie accessCookie = new Cookie("accessToken", accessToken);
+        accessCookie.setHttpOnly(true);   // 자바스크립트에서 접근 불가 (보안)
+        accessCookie.setSecure(true);     // https에서만 동작 (로컬 테스트 시에는 false 가능)
+        accessCookie.setPath("/");        // 모든 경로에서 쿠키 접근 가능
+
+        // Refresh Token 쿠키 설정
+        Cookie refreshCookie = new Cookie("refreshToken", refreshToken);
+        refreshCookie.setHttpOnly(true);
+        refreshCookie.setSecure(true);
+        refreshCookie.setPath("/");
+
+        // 응답에 쿠키 추가
+        response.addCookie(accessCookie);
+        response.addCookie(refreshCookie);
     }
 }

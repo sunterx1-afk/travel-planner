@@ -13,7 +13,8 @@ interface KakaoPlace {
 
 interface PlaceSearchModalProps {
   onClose: () => void;
-  onSelect: (place: KakaoPlace) => void;
+  // 💡 onSelect가 KakaoPlace와 함께 boolean 값을 받도록 수정
+  onSelect: (place: KakaoPlace, isAccommodation: boolean) => void;
 }
 
 const PlaceSearchModal: React.FC<PlaceSearchModalProps> = ({ onClose, onSelect }) => {
@@ -21,30 +22,33 @@ const PlaceSearchModal: React.FC<PlaceSearchModalProps> = ({ onClose, onSelect }
   const [results, setResults] = useState<KakaoPlace[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searched, setSearched] = useState(false);
+  // 💡 숙소 등록 상태 추가
+  const [isAccommodation, setIsAccommodation] = useState(false);
 
   const handleSearch = (): void => {
     if (!keyword.trim()) return;
     setIsSearching(true);
     setSearched(true);
 
-    // 💡 추후 카카오 로컬 API 연동할 공간
-    // const ps = new window.kakao.maps.services.Places();
-    // ps.keywordSearch(keyword, (result, status) => {
-    //   if (status === window.kakao.maps.services.Status.OK) {
-    //     setResults(result);
-    //   }
-    //   setIsSearching(false);
-    // });
+    const ps = new (window as any).kakao.maps.services.Places();
 
-    // 임시 더미 데이터
-    setTimeout(() => {
-      setResults([
-        { id: '1', place_name: `${keyword} 카페`, category_name: '카페', address_name: '제주시 연동 123', road_address_name: '제주시 연동로 123', x: '126.5', y: '33.4' },
-        { id: '2', place_name: `${keyword} 맛집`, category_name: '음식점 > 한식', address_name: '제주시 이도동 456', road_address_name: '제주시 이도로 456', x: '126.6', y: '33.5' },
-        { id: '3', place_name: `${keyword} 박물관`, category_name: '관광명소', address_name: '서귀포시 중문동 789', road_address_name: '서귀포시 중문로 789', x: '126.4', y: '33.3' },
-      ]);
+    ps.keywordSearch(keyword, (result: any[], status: any) => {
       setIsSearching(false);
-    }, 500);
+      if (status === (window as any).kakao.maps.services.Status.OK) {
+        const formattedResults: KakaoPlace[] = result.map((item) => ({
+          id: item.id,
+          place_name: item.place_name,
+          category_name: item.category_name,
+          address_name: item.address_name,
+          road_address_name: item.road_address_name,
+          x: item.x,
+          y: item.y,
+        }));
+        setResults(formattedResults);
+      } else {
+        setResults([]);
+      }
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
@@ -87,27 +91,17 @@ const PlaceSearchModal: React.FC<PlaceSearchModalProps> = ({ onClose, onSelect }
 
         {/* 검색 결과 */}
         <div className="max-h-[360px] overflow-y-auto">
+          {/* ... (로딩/결과없음 상태는 기존 유지) ... */}
           {isSearching && (
             <div className="flex items-center justify-center py-10 text-[13px] text-[#6c757d]">
-              <svg className="animate-spin w-4 h-4 mr-2 text-[#178DD7]" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
+              <div className="animate-spin w-4 h-4 mr-2 border-2 border-[#178DD7] border-t-transparent rounded-full" />
               검색 중...
             </div>
           )}
-
           {!isSearching && searched && results.length === 0 && (
             <div className="flex flex-col items-center justify-center py-10 text-[13px] text-[#adb5bd]">
               <Search className="w-8 h-8 mb-2 opacity-30" />
               검색 결과가 없어요
-            </div>
-          )}
-
-          {!isSearching && !searched && (
-            <div className="flex flex-col items-center justify-center py-10 text-[13px] text-[#adb5bd]">
-              <MapPin className="w-8 h-8 mb-2 opacity-30" />
-              장소명을 검색해보세요
             </div>
           )}
 
@@ -117,7 +111,7 @@ const PlaceSearchModal: React.FC<PlaceSearchModalProps> = ({ onClose, onSelect }
                 <div
                   key={place.id}
                   className="flex items-center justify-between px-5 py-3.5 hover:bg-[#f8f9fa] transition-colors cursor-pointer"
-                  onClick={() => onSelect(place)}
+                  onClick={() => onSelect(place, isAccommodation)} // 💡 체크값 함께 전달
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-md bg-[#E6F1FB] flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -138,6 +132,20 @@ const PlaceSearchModal: React.FC<PlaceSearchModalProps> = ({ onClose, onSelect }
             </div>
           )}
         </div>
+
+        {/* 💡 숙소 등록 체크박스 영역 */}
+        <div className="px-5 py-4 border-t border-[#e9ecef] bg-[#f8f9fa]">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={isAccommodation} 
+              onChange={(e) => setIsAccommodation(e.target.checked)}
+              className="w-4 h-4 accent-[#178DD7]"
+            />
+            <span className="text-[13px] text-[#212529]">🏠 숙소(출발지)로 등록하여 맨 앞에 추가</span>
+          </label>
+        </div>
+
       </div>
     </div>
   );

@@ -9,12 +9,14 @@ import PlannerPage from '../pages/PlannerPage';
 import TripListPage from '../pages/TripListPage';
 import TripDetailPage from '../pages/Tripdetailpage';
 import AuthGuard from '../components/AuthGuard';
+import OAuthRedirectHandler from '../components/OAuthRedirectHandler';
 
 export const router = createBrowserRouter([
   // 1. 누구나 접근 가능한 페이지
   { path: '/', element: <MainLandingPage /> },
   { path: '/login', element: <LoginPage /> },
   { path: '/signup', element: <SignupPage /> },
+  { path: '/oauth/kakao', element: <OAuthRedirectHandler /> },
   
   // 2. 💡 AuthGuard로 감싸서 로그인한 유저만 접근 가능하게 설정
   {
