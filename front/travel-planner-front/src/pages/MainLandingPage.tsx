@@ -253,7 +253,7 @@ const MainLandingPage: React.FC = () => {
       )}
 
       <footer className="border-t border-[#e9ecef] py-6 text-center text-[12px] text-[#adb5bd] bg-[#f8f9fa]">
-        &copy; 2026 AI 여행 플래너. All rights reserv
+        &copy; 2026 AI 여행 플래너. All rights reserved.
       </footer>
     </div>
   );
