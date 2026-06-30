@@ -84,7 +84,7 @@ public class AuthController {
         return null;
     }
 
-    // 토큰 재발급 API 추가
+    // 토큰 재발급 API (리프레시 토큰 로테이션 적용)
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@CookieValue(name = "refreshToken", required = false) String refreshToken,
                                      HttpServletResponse response) {
@@ -93,23 +93,45 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh Token 만료");
         }
 
+        // 💡 리프레시 토큰은 subject에 email이 들어있음 (claim이 아님)
         String email = jwtUtil.getEmailFromRefreshToken(refreshToken);
         RefreshToken storedToken = refreshTokenRepository.findById(email).orElse(null);
 
+        // 💡 Redis에 저장된 값과 클라이언트가 보낸 토큰이 정확히 일치하는지 검증
+        // (다르면 -> 이미 사용되어 폐기된 토큰일 가능성, 즉 탈취 의심 상황)
         if (storedToken == null || !storedToken.getRefreshToken().equals(refreshToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("유효하지 않은 Refresh Token");
         }
 
-        // 새 Access Token 발급
-        // (주의: 여기서도 UserID를 가져오려면 userService 등을 통해 조회해야 합니다)
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다."));
+
+        // 새 Access Token 발급
         String newAccessToken = jwtUtil.generateToken(user.getUserId(), email);
 
-        ResponseCookie newAccessCookie = ResponseCookie.from("accessToken", newAccessToken)
-                .httpOnly(true).path("/").build();
+        // 💡 [로테이션] 새 Refresh Token도 같이 발급하고, 기존 값을 즉시 덮어씀
+        String newRefreshToken = jwtUtil.generateRefreshToken(email);
+        refreshTokenRepository.save(RefreshToken.builder()
+                .email(email)
+                .refreshToken(newRefreshToken)
+                .build());
 
-        response.setHeader(HttpHeaders.SET_COOKIE, newAccessCookie.toString());
+        // 새 Access Token 쿠키 설정 (세션 쿠키 - 브라우저 종료 시 삭제)
+        ResponseCookie newAccessCookie = ResponseCookie.from("accessToken", newAccessToken)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, newAccessCookie.toString());
+
+        // 💡 [로테이션] 새 Refresh Token 쿠키도 갱신 (기존 쿠키를 새 값으로 덮어씀)
+        ResponseCookie newRefreshCookie = ResponseCookie.from("refreshToken", newRefreshToken)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .sameSite("Lax")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, newRefreshCookie.toString());
 
         return ResponseEntity.ok("재발급 성공");
     }
